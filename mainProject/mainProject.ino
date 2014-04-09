@@ -7,38 +7,37 @@
 // initialize the library with the numbers of the interface pins
 
 #include <SoftwareSerial.h>
+#include <LiquidCrystal.h>
 
-// Defined mappings on the multiplexer inputs.
-#define preshReadPin_0 0
-#define preshReadPin_1 1
-#define preshReadPin_2 2
-#define preshReadPin_3 3
-#define preshReadPin_4 4
-#define preshReadPin_5 5
-#define preshReadPin_6 6
-#define preshReadPin_7 7
-#define preshReadPin_8 8
-#define preshReadPin_9 9
-#define preshReadPin_MODE 10
-#define preshReadPin_SEND_CALL 11
-#define preshReadPin_BACKSPACE_END 12
+// Define the mappings in the sensor array
+#define preshReadPin_0 A0
+#define preshReadPin_1 A1
+#define preshReadPin_2 A2
+#define preshReadPin_3 A3
+#define preshReadPin_4 A4
+#define preshReadPin_5 A5
+#define preshReadPin_6 A6
+#define preshReadPin_7 A7
+#define preshReadPin_8 6
+#define preshReadPin_9 5
+#define preshReadPin_MODE 4
+#define preshReadPin_SEND_CALL 3
+#define preshReadPin_BACKSPACE_END 2
 
 // Array of the sensor data for multiplexed inputs.
-int sensorArray[16];
-
-// The analog input pin for the multiplexer
-#define multiRead A0
-// The digital pins used to select the line for the multiplexer
-#define multiSelectPin_0 2  // Most significant
-#define multiSelectPin_1 3
-#define multiSelectPin_2 4
-#define multiSelectPin_3 5  // Least significant
+int sensorArray[13];
 
 // The threshold for Analog Data
-int preshAnalogThresh = 500;
+int preshAnalogThresh = 200;
+// WATCH OUT: This depends on cycle delay. It's not in seconds or ms.
+boolean holdMessageSent = false;
 
 // The digital pin for the led
 #define boardled 13
+
+// Liquid Crystal display: 
+LiquidCrystal lcd(7, 8, 9, 10, 11, 12);
+char lcdBuffer[34]; // 16 + \n + 16 + \n
 
 // Character Tracking Variables
 #define NO_INPUT_CHAR 'W'
@@ -48,6 +47,12 @@ int preshAnalogThresh = 500;
 
 char lastCharRead = NO_INPUT_CHAR;
 char currCharRead = NO_INPUT_CHAR;
+int charCounter = 0;
+
+// DO NOT MAKE THESE EQUAL
+#define MAX_COUNTER 1000
+#define HOLD_THRESHOLD 50
+
 
 // Temporary Variables (Replace these later!)
 int numblinks = 0;
@@ -56,95 +61,141 @@ void setup() {
   // set up the LCD's number of columns and rows: 
   pinMode(boardled, OUTPUT);
   
+  lcd.begin(16, 2);
+  
+  pinMode(preshReadPin_8, INPUT);
+  pinMode(preshReadPin_9, INPUT);
+  pinMode(preshReadPin_MODE, INPUT);
+  pinMode(preshReadPin_SEND_CALL, INPUT);
+  pinMode(preshReadPin_BACKSPACE_END, INPUT);  
+  
   Serial.begin(9600);
 }
 
 void loop() {
 
-  readMultiplexedInputs();
+  readInputs();
   
   // DEBUG: data reads from pressure inputs.
   //printPressureReads();
 
   // Translate the reading to a character.
   // This is where the character priorities are defined.
-  if (sensorArray[preshReadPin_MODE] > preshAnalogThresh) {
+  if (sensorArray[10] == HIGH) {
     currCharRead = MODE_CHAR; // MODE Switch
-  } else if (sensorArray[preshReadPin_0] > preshAnalogThresh) {
+  } else if (sensorArray[0] == HIGH) {
     currCharRead = '0';
-  } else if (sensorArray[preshReadPin_1] > preshAnalogThresh) {
+  } else if (sensorArray[1] == HIGH) {
     currCharRead = '1';    
-  } else if (sensorArray[preshReadPin_2] > preshAnalogThresh) {
+  } else if (sensorArray[2] == HIGH) {
     currCharRead = '2';    
-  } else if (sensorArray[preshReadPin_3] > preshAnalogThresh) {
+  } else if (sensorArray[3] == HIGH) {
     currCharRead = '3';    
-  } else if (sensorArray[preshReadPin_4] > preshAnalogThresh) {
+  } else if (sensorArray[4] == HIGH) {
     currCharRead = '4';    
-  } else if (sensorArray[preshReadPin_5] > preshAnalogThresh) {
+  } else if (sensorArray[5] == HIGH) {
     currCharRead = '5';    
-  } else if (sensorArray[preshReadPin_6] > preshAnalogThresh) {
+  } else if (sensorArray[6] == HIGH) {
     currCharRead = '6';    
-  } else if (sensorArray[preshReadPin_7] > preshAnalogThresh) {
+  } else if (sensorArray[7] == HIGH) {
     currCharRead = '7';    
-  } else if (sensorArray[preshReadPin_8] > preshAnalogThresh) {
+  } else if (sensorArray[8] == HIGH) {
     currCharRead = '8';    
-  } else if (sensorArray[preshReadPin_9] > preshAnalogThresh) {
+  } else if (sensorArray[9] == HIGH) {
     currCharRead = '9';    
-  } else if (sensorArray[preshReadPin_SEND_CALL] > preshAnalogThresh) {
+  } else if (sensorArray[11] == HIGH) {
     currCharRead = SEND_CALL_CHAR; // CALL
-  } else if (sensorArray[preshReadPin_BACKSPACE_END] > preshAnalogThresh) {
+  } else if (sensorArray[12] == HIGH) {
     currCharRead = BACKSPACE_END_CHAR;    
   } else {
     currCharRead = NO_INPUT_CHAR;
   }
-  
-  // If we detect a character change.
-  if (currCharRead != lastCharRead) {
-    /*
-    Serial.print("State Change = ");
-    Serial.print(currCharRead);
-    Serial.print("\n");
-    */
-    
-    if ( currCharRead != NO_INPUT_CHAR) {
-      Serial.write(currCharRead);
-      Serial.write("\n");
-      //Serial.print(currCharRead);
-      //Serial.print("\n");
-      // Indicates a character change
-      blink(1, 500);
+
+  // Key Down Action
+  if (currCharRead != lastCharRead && lastCharRead == NO_INPUT_CHAR) {
+    charCounter = 0;
+  } 
+  // Key Up Action
+  else if (currCharRead != lastCharRead && currCharRead == NO_INPUT_CHAR) {
+    if (!holdMessageSent) {
+      Serial.println(lastCharRead);
+    }
+    charCounter = 0;
+  } 
+  // Change Key Action
+  else if (currCharRead != lastCharRead && currCharRead == NO_INPUT_CHAR) {
+    charCounter = 0;
+  }
+  // Hold multiple keys Action
+  else if (sensorArray[5] == HIGH && sensorArray[6] == HIGH && sensorArray[7] == HIGH) {
+    holdMessageSent = true;
+  }
+  // Key Hold Action
+  else {  
+    if (charCounter == HOLD_THRESHOLD && currCharRead != NO_INPUT_CHAR) {
+      Serial.print("H");
+      Serial.println(lastCharRead);
+      holdMessageSent = true;
     }
 
-    lastCharRead = currCharRead;
+    charCounter = charCounter + 1;
+    // Accounts for overflow  
+    charCounter = (charCounter < MAX_COUNTER) ? charCounter : MAX_COUNTER;
+  } 
+  lastCharRead = currCharRead;
+  //Serial.println(charCounter);
+   
+  
+  // Indicates if we have exceeded a hold threshold.
+  if (charCounter > HOLD_THRESHOLD) {
+    digitalWrite(boardled, HIGH);   // turn the LED on (HIGH is the voltage level)
+  } else {
+    digitalWrite(boardled, LOW);  
   }
   
+  
+  
+  if (currCharRead == NO_INPUT_CHAR) {
+    holdMessageSent = false;
+  }
+  
+  
+  
+  //updateLCD();
   delay(10);
 }
 
-int readMultiplexedInputs() {
-  int currentInput = 0;
-  
-  // BEWARE THE INDENTATION IS MISLEADING HERE FOR READABILITY.  
-  // Countdown Optimization
-  for(int select_0 = 1; select_0 == 0; select_0--){
-    if (select_0 == 1) { digitalWrite(multiSelectPin_0, LOW);}
-    else {               digitalWrite(multiSelectPin_0, HIGH);}
-  for(int select_1 = 1; select_1 == 0; select_1--){
-    if (select_1 == 1) { digitalWrite(multiSelectPin_1, LOW);}
-    else {               digitalWrite(multiSelectPin_1, HIGH);}    
-  for(int select_2 = 1; select_2 == 0; select_2--){
-    if (select_2 == 1) { digitalWrite(multiSelectPin_2, LOW);}
-    else {               digitalWrite(multiSelectPin_2, HIGH);}
-  for(int select_3 = 1; select_3 == 0; select_3--){
-    if (select_3 == 1) { digitalWrite(multiSelectPin_3, LOW);}
-    else {               digitalWrite(multiSelectPin_3, HIGH);}
-    // MAIN READ LOOP
+/*
+void callModeLoop() {
     
-    sensorArray[currentInput] = analogRead(multiReadPin);
-
-    currentInput++;
-  }}}}  
 }
+
+void textModeLoop() {
+  
+}*/
+
+void updateLCD() {
+  // Check how to print on both lines.
+  lcd.print(lcdBuffer);
+}
+
+void readInputs() {
+  sensorArray[0] = (analogRead(preshReadPin_0) > preshAnalogThresh) ? HIGH : LOW;
+  sensorArray[1] = (analogRead(preshReadPin_1) > preshAnalogThresh) ? HIGH : LOW;
+  sensorArray[2] = (analogRead(preshReadPin_2) > preshAnalogThresh) ? HIGH : LOW;
+  sensorArray[3] = (analogRead(preshReadPin_3) > preshAnalogThresh) ? HIGH : LOW;
+  sensorArray[4] = (analogRead(preshReadPin_4) > preshAnalogThresh) ? HIGH : LOW;
+  sensorArray[5] = (analogRead(preshReadPin_5) > preshAnalogThresh) ? HIGH : LOW;
+  sensorArray[6] = (analogRead(preshReadPin_6) > preshAnalogThresh) ? HIGH : LOW;
+  sensorArray[7] = (analogRead(preshReadPin_7) > preshAnalogThresh) ? HIGH : LOW;
+
+  sensorArray[8] = digitalRead(preshReadPin_8);
+  sensorArray[9] = digitalRead(preshReadPin_9);
+  sensorArray[10] = digitalRead(preshReadPin_MODE);
+  sensorArray[11] = digitalRead(preshReadPin_SEND_CALL);
+  sensorArray[12] = digitalRead(preshReadPin_BACKSPACE_END);
+}
+
 void blink(int numBlinks, int bDelay) {
   while (numBlinks > 0){
     digitalWrite(boardled, HIGH);   // turn the LED on (HIGH is the voltage level)
@@ -156,4 +207,5 @@ void blink(int numBlinks, int bDelay) {
 }
 
 void printPressureReads() {
+  
 }
