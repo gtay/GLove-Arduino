@@ -6,10 +6,11 @@
 
 // initialize the library with the numbers of the interface pins
 
-#include <SoftwareSerial.h>
-#include <LiquidCrystal.h>
 
+
+//// Sensors
 // Define the mappings in the sensor array
+// ***NOTE IF YOU CHANGE THESE, CHANGE readSensorInputs() accordingly.
 #define preshReadPin_0 A0
 #define preshReadPin_1 A1
 #define preshReadPin_2 A2
@@ -29,56 +30,87 @@ int sensorArray[13];
 
 // The threshold for Analog Data
 int preshAnalogThresh = 200;
-// WATCH OUT: This depends on cycle delay. It's not in seconds or ms.
-boolean holdMessageSent = false;
 
-// The digital pin for the led
-#define boardled 13
+//// LCD Control
+#include <Adafruit_GFX.h>
+#include <Adafruit_PCD8544.h>
+
+#define LCD_BUFFER_SIZE 84
 
 // Liquid Crystal display: 
-LiquidCrystal lcd(7, 8, 9, 10, 11, 12);
-char lcdBuffer[34]; // 16 + \n + 16 + \n
+//char lcdBuffer[LCD_BUFFER_SIZE]; // 14 x 6
+String lcdData;
 
+Adafruit_PCD8544 display = Adafruit_PCD8544(13, 11, 9, 10, 8);
+
+#define LOGO16_GLCD_HEIGHT 48
+#define LOGO16_GLCD_WIDTH  84
+
+// Don't know what these do
+#define NUMFLAKES 10
+#define XPOS 0
+#define YPOS 1
+#define DELTAY 2
+
+
+//// Configurable Parameters
 // Character Tracking Variables
-#define NO_INPUT_CHAR 'W'
-#define MODE_CHAR 'X'
-#define SEND_CALL_CHAR 'Y'
-#define BACKSPACE_END_CHAR 'Z'
+#define NO_INPUT_CHAR 'E'
+#define MODE_CHAR 'M'
+#define SEND_CALL_CHAR '#'
+#define BACKSPACE_END_CHAR '*'
 
 char lastCharRead = NO_INPUT_CHAR;
 char currCharRead = NO_INPUT_CHAR;
 int charCounter = 0;
 
+#define LCD_DEBUG true
+
 // DO NOT MAKE THESE EQUAL
 #define MAX_COUNTER 1000
 #define HOLD_THRESHOLD 50
 
+// The digital pin for the led
+#define boardled 13
 
-// Temporary Variables (Replace these later!)
+
+/////// Temporary Variables (Replace these later!)
 int numblinks = 0;
+// WATCH OUT: This depends on cycle delay. It's not in seconds or ms.
+boolean holdMessageSent = false;
+
+int currBufferIndex = 0;
 
 void setup() {
   // set up the LCD's number of columns and rows: 
   pinMode(boardled, OUTPUT);
-  
-  lcd.begin(16, 2);
   
   pinMode(preshReadPin_8, INPUT);
   pinMode(preshReadPin_9, INPUT);
   pinMode(preshReadPin_MODE, INPUT);
   pinMode(preshReadPin_SEND_CALL, INPUT);
   pinMode(preshReadPin_BACKSPACE_END, INPUT);  
+   
+  LCDsetup();
   
   Serial.begin(9600);
 }
 
 void loop() {
 
-  readInputs();
+  readSensorInputs();
   
   // DEBUG: data reads from pressure inputs.
   //printPressureReads();
 
+  parseSensorInputsAndSend();
+  
+  readSerialToLCD();
+
+  delay(10);
+}
+
+void parseSensorInputsAndSend() {
   // Translate the reading to a character.
   // This is where the character priorities are defined.
   if (sensorArray[10] == HIGH) {
@@ -118,7 +150,7 @@ void loop() {
   // Key Up Action
   else if (currCharRead != lastCharRead && currCharRead == NO_INPUT_CHAR) {
     if (!holdMessageSent) {
-      Serial.println(lastCharRead);
+      sendMessage(String(lastCharRead));
     }
     charCounter = 0;
   } 
@@ -128,13 +160,12 @@ void loop() {
   }
   // Hold multiple keys Action
   else if (sensorArray[5] == HIGH && sensorArray[6] == HIGH && sensorArray[7] == HIGH) {
-    holdMessageSent = true;
+    //holdMessageSent = true;
   }
   // Key Hold Action
   else {  
     if (charCounter == HOLD_THRESHOLD && currCharRead != NO_INPUT_CHAR) {
-      Serial.print("H");
-      Serial.println(lastCharRead);
+      sendMessage(String(String('H') + String(lastCharRead)));
       holdMessageSent = true;
     }
 
@@ -143,27 +174,20 @@ void loop() {
     charCounter = (charCounter < MAX_COUNTER) ? charCounter : MAX_COUNTER;
   } 
   lastCharRead = currCharRead;
-  //Serial.println(charCounter);
-   
-  
+     
   // Indicates if we have exceeded a hold threshold.
   if (charCounter > HOLD_THRESHOLD) {
     digitalWrite(boardled, HIGH);   // turn the LED on (HIGH is the voltage level)
   } else {
     digitalWrite(boardled, LOW);  
   }
-  
-  
-  
+    
   if (currCharRead == NO_INPUT_CHAR) {
     holdMessageSent = false;
-  }
-  
-  
-  
-  //updateLCD();
-  delay(10);
+  }  
 }
+
+
 
 /*
 void callModeLoop() {
@@ -174,12 +198,7 @@ void textModeLoop() {
   
 }*/
 
-void updateLCD() {
-  // Check how to print on both lines.
-  lcd.print(lcdBuffer);
-}
-
-void readInputs() {
+void readSensorInputs() {
   sensorArray[0] = (analogRead(preshReadPin_0) > preshAnalogThresh) ? HIGH : LOW;
   sensorArray[1] = (analogRead(preshReadPin_1) > preshAnalogThresh) ? HIGH : LOW;
   sensorArray[2] = (analogRead(preshReadPin_2) > preshAnalogThresh) ? HIGH : LOW;
@@ -196,6 +215,14 @@ void readInputs() {
   sensorArray[12] = digitalRead(preshReadPin_BACKSPACE_END);
 }
 
+void sendMessage(String message) {
+  Serial.println(message);
+  
+  if (LCD_DEBUG) {
+    LCDprintToScreen(message);
+  }
+}
+
 void blink(int numBlinks, int bDelay) {
   while (numBlinks > 0){
     digitalWrite(boardled, HIGH);   // turn the LED on (HIGH is the voltage level)
@@ -206,6 +233,61 @@ void blink(int numBlinks, int bDelay) {
   }
 }
 
+/*
 void printPressureReads() {
   
+}*/
+
+// Be careful not to leave it on longer than you have to, else you will get pixel burn.
+void LCDsetup() {
+  // you can change the contrast around to adapt the display
+  // for the best viewing!
+  display.setContrast(90);
+  
+  // Set text options
+  display.setTextSize(0);
+  display.setTextColor(BLACK);
+  display.setCursor(0,0);
+
+  // Start the display
+  display.begin();
+  
+  // show splashscreen and check that it works
+  display.display();  
+  delay(50);
+  display.clearDisplay();   // clears the screen and buffer
+  display.display();  
 }
+
+// LCD Screen Control
+void LCDprintToScreen(String lcdText)
+{
+  display.clearDisplay();
+  display.print(lcdText);
+  display.display();
+}
+
+void readSerialToLCD() {  
+  // send data only when you receive data:
+  if (Serial.available() > 0) {
+
+    // read the incoming byte:
+    char incomingChar = Serial.read();  
+    //sendMessage(String(incomingChar)); 
+
+    lcdData += incomingChar;
+    currBufferIndex++;
+    
+    if (currBufferIndex >= LCD_BUFFER_SIZE || incomingChar == '\n') { 
+      sendMessage(lcdData);
+      lcdData = String("");
+      currBufferIndex = 0;
+    }
+  }
+}
+
+// serialEvent
+/*void serialEvent(){
+//statements
+}*/
+
