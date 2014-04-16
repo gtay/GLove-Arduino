@@ -279,7 +279,7 @@ void readSerialToLCD() {
     currBufferIndex++;
     
     if (currBufferIndex >= LCD_BUFFER_SIZE || incomingChar == '\n') { 
-      sendMessage(lcdData);
+      LCDprintToScreen(lcdData);
       lcdData = String("");
       currBufferIndex = 0;
     }
