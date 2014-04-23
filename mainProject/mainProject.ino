@@ -43,14 +43,14 @@ String lcdData;
 
 Adafruit_PCD8544 display = Adafruit_PCD8544(13, 11, 9, 10, 8);
 
-#define LOGO16_GLCD_HEIGHT 48
-#define LOGO16_GLCD_WIDTH  84
-
 // Don't know what these do
 #define NUMFLAKES 10
 #define XPOS 0
 #define YPOS 1
 #define DELTAY 2
+
+#define LOGO16_GLCD_HEIGHT 48
+#define LOGO16_GLCD_WIDTH  84
 
 
 //// Configurable Parameters
@@ -82,7 +82,7 @@ boolean holdMessageSent = false;
 int currBufferIndex = 0;
 
 void setup() {
-  // set up the LCD's number of columns and rows: 
+  // The board LED will not work while the LCD is in use because it's SCLK
   pinMode(boardled, OUTPUT);
   
   pinMode(preshReadPin_8, INPUT);
@@ -91,9 +91,11 @@ void setup() {
   pinMode(preshReadPin_SEND_CALL, INPUT);
   pinMode(preshReadPin_BACKSPACE_END, INPUT);  
    
-  LCDsetup();
   
   Serial.begin(9600);
+
+  // Needs to happen after Serial.begin();  
+  LCDsetup();
 }
 
 void loop() {
@@ -155,7 +157,7 @@ void parseSensorInputsAndSend() {
     charCounter = 0;
   } 
   // Change Key Action
-  else if (currCharRead != lastCharRead && currCharRead == NO_INPUT_CHAR) {
+  else if (currCharRead != lastCharRead && currCharRead != NO_INPUT_CHAR) {
     charCounter = 0;
   }
   // Hold multiple keys Action
@@ -166,6 +168,7 @@ void parseSensorInputsAndSend() {
   else {  
     if (charCounter == HOLD_THRESHOLD && currCharRead != NO_INPUT_CHAR) {
       sendMessage(String(String('H') + String(lastCharRead)));
+      //sendMessage(String(lastCharRead));
       holdMessageSent = true;
     }
 
@@ -240,31 +243,38 @@ void printPressureReads() {
 
 // Be careful not to leave it on longer than you have to, else you will get pixel burn.
 void LCDsetup() {
-  // you can change the contrast around to adapt the display
-  // for the best viewing!
-  display.setContrast(90);
+  /*
   
   // Set text options
   display.setTextSize(0);
   display.setTextColor(BLACK);
   display.setCursor(0,0);
 
-  // Start the display
-  display.begin();
+  */
   
-  // show splashscreen and check that it works
-  display.display();  
-  delay(50);
+  pinMode(boardled, INPUT);
+  
+  display.begin();
+  // init done
+
+  // you can change the contrast around to adapt the display
+  // for the best viewing!
+  display.setContrast(50);
+
+  display.display(); // show splashscreen
+  delay(100);
   display.clearDisplay();   // clears the screen and buffer
-  display.display();  
+
+  LCDprintToScreen("Welcome to GLove!");
 }
 
 // LCD Screen Control
 void LCDprintToScreen(String lcdText)
 {
-  display.clearDisplay();
   display.print(lcdText);
   display.display();
+  delay(10);
+  display.clearDisplay();
 }
 
 void readSerialToLCD() {  
