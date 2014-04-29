@@ -286,10 +286,15 @@ void readSerialToLCD() {
     char incomingChar = Serial.read();  
     //sendMessage(String(incomingChar)); 
 
-    lcdData += incomingChar;
+    if (incomingChar == 0) {
+      lcdData += '\n';
+    } else {
+      lcdData += incomingChar;
+    }
+
     currBufferIndex++;
     
-    if (currBufferIndex >= LCD_BUFFER_SIZE || incomingChar == 0) { 
+    if (currBufferIndex >= LCD_BUFFER_SIZE || incomingChar == '\n') { 
       LCDprintToScreen(lcdData);
       lcdData = String("");
       currBufferIndex = 0;
