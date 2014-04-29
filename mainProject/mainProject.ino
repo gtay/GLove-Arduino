@@ -11,19 +11,20 @@
 //// Sensors
 // Define the mappings in the sensor array
 // ***NOTE IF YOU CHANGE THESE, CHANGE readSensorInputs() accordingly.
-#define preshReadPin_0 A0
-#define preshReadPin_1 A1
-#define preshReadPin_2 A2
-#define preshReadPin_3 A3
-#define preshReadPin_4 A4
-#define preshReadPin_5 A5
-#define preshReadPin_6 A6
-#define preshReadPin_7 A7
-#define preshReadPin_8 6
-#define preshReadPin_9 5
-#define preshReadPin_MODE 4
-#define preshReadPin_SEND_CALL 3
-#define preshReadPin_BACKSPACE_END 2
+#define preshReadPin_0 A2
+#define preshReadPin_1 A4
+#define preshReadPin_2 A5
+#define preshReadPin_3 A6
+#define preshReadPin_4 A7
+#define preshReadPin_MODE A0
+#define preshReadPin_SEND_CALL A1
+#define preshReadPin_BACKSPACE_END A3
+
+#define preshReadPin_5 2
+#define preshReadPin_6 3
+#define preshReadPin_7 4
+#define preshReadPin_8 5
+#define preshReadPin_9 6
 
 // Array of the sensor data for multiplexed inputs.
 int sensorArray[13];
@@ -167,7 +168,7 @@ void parseSensorInputsAndSend() {
   // Key Hold Action
   else {  
     if (charCounter == HOLD_THRESHOLD && currCharRead != NO_INPUT_CHAR) {
-      sendMessage(String(String('H') + String(lastCharRead)));
+      sendMessage(String(String('h') + String(lastCharRead)));
       //sendMessage(String(lastCharRead));
       holdMessageSent = true;
     }
@@ -207,15 +208,15 @@ void readSensorInputs() {
   sensorArray[2] = (analogRead(preshReadPin_2) > preshAnalogThresh) ? HIGH : LOW;
   sensorArray[3] = (analogRead(preshReadPin_3) > preshAnalogThresh) ? HIGH : LOW;
   sensorArray[4] = (analogRead(preshReadPin_4) > preshAnalogThresh) ? HIGH : LOW;
-  sensorArray[5] = (analogRead(preshReadPin_5) > preshAnalogThresh) ? HIGH : LOW;
-  sensorArray[6] = (analogRead(preshReadPin_6) > preshAnalogThresh) ? HIGH : LOW;
-  sensorArray[7] = (analogRead(preshReadPin_7) > preshAnalogThresh) ? HIGH : LOW;
+  sensorArray[10] = (analogRead(preshReadPin_MODE) > preshAnalogThresh) ? HIGH : LOW;
+  sensorArray[11] = (analogRead(preshReadPin_SEND_CALL) > preshAnalogThresh) ? HIGH : LOW;
+  sensorArray[12] = (analogRead(preshReadPin_BACKSPACE_END) > preshAnalogThresh) ? HIGH : LOW;
 
+  sensorArray[5] = digitalRead(preshReadPin_5);
+  sensorArray[6] = digitalRead(preshReadPin_6);
+  sensorArray[7] = digitalRead(preshReadPin_7);
   sensorArray[8] = digitalRead(preshReadPin_8);
   sensorArray[9] = digitalRead(preshReadPin_9);
-  sensorArray[10] = digitalRead(preshReadPin_MODE);
-  sensorArray[11] = digitalRead(preshReadPin_SEND_CALL);
-  sensorArray[12] = digitalRead(preshReadPin_BACKSPACE_END);
 }
 
 void sendMessage(String message) {
