@@ -64,7 +64,7 @@ char lastCharRead = NO_INPUT_CHAR;
 char currCharRead = NO_INPUT_CHAR;
 int charCounter = 0;
 
-#define LCD_DEBUG true
+#define LCD_DEBUG false
 
 // DO NOT MAKE THESE EQUAL
 #define MAX_COUNTER 1000
@@ -288,7 +288,7 @@ void readSerialToLCD() {
     lcdData += incomingChar;
     currBufferIndex++;
     
-    if (currBufferIndex >= LCD_BUFFER_SIZE || incomingChar == '\n') { 
+    if (currBufferIndex >= LCD_BUFFER_SIZE || incomingChar == 0) { 
       LCDprintToScreen(lcdData);
       lcdData = String("");
       currBufferIndex = 0;
