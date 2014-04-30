@@ -44,6 +44,19 @@ String lcdData;
 
 Adafruit_PCD8544 display = Adafruit_PCD8544(13, 11, 9, 10, 8);
 
+/* 
+Pin Mappings:
+Adafruit -> Arduino
+1 VCC        VCC
+2 GND        GND
+3 SCE        D10
+4 RST        D8
+5 DC         D9
+6 DN(MOSI)   D11
+7 SCLK       D13
+8 LED        VCC
+*/
+
 // Don't know what these do
 #define NUMFLAKES 10
 #define XPOS 0
@@ -243,16 +256,7 @@ void printPressureReads() {
 }*/
 
 // Be careful not to leave it on longer than you have to, else you will get pixel burn.
-void LCDsetup() {
-  /*
-  
-  // Set text options
-  display.setTextSize(0);
-  display.setTextColor(BLACK);
-  display.setCursor(0,0);
-
-  */
-  
+void LCDsetup() {  
   pinMode(boardled, INPUT);
   
   display.begin();
